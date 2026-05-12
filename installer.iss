@@ -46,4 +46,4 @@ Filename: "taskkill.exe"; Parameters: "/f /im {#MyAppExeName}"; Flags: runhidden
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
 
 [UninstallDelete]
-Type: filesandirs; Name: "{app}"
+Type: filesandordirs; Name: "{app}"
