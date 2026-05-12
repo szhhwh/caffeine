@@ -19,6 +19,7 @@ WizardStyle=modern
 PrivilegesRequired=admin
 UninstallDisplayName={#MyAppName}
 CloseApplications=force
+SetupIconFile=assets\app.ico
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"

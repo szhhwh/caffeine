@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PIL import Image, ImageDraw
 
 _SIZE = 64
@@ -83,3 +85,15 @@ def create_icon(active: bool = True) -> Image.Image:
                     px[x, y] = (r, g, b, 180)
 
     return img
+
+
+def create_ico(path: str | bytes | Path, sizes: tuple[int, ...] = (16, 32, 48, 256)) -> None:
+    icon = create_icon(active=True).convert("RGBA")
+    sorted_sizes = sorted(sizes, reverse=True)
+    resized = [icon.resize((s, s), Image.LANCZOS) for s in sorted_sizes]
+    resized[0].save(
+        path,
+        format="ICO",
+        sizes=[(s, s) for s in sorted_sizes],
+        append_images=resized[1:],
+    )

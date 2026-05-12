@@ -8,5 +8,4 @@ build/
 installer_output/
 *.exe
 *.ico
-!assets/*.ico
 .ruff_cache/

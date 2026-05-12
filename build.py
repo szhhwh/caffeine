@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from caffeine.icon import create_ico
+
 ROOT = Path(__file__).parent
 DIST = ROOT / "dist"
 MAIN = ROOT / "main.py"
@@ -10,6 +12,12 @@ ICON_DIR = ROOT / "assets"
 
 def build() -> None:
     DIST.mkdir(exist_ok=True)
+    ICON_DIR.mkdir(exist_ok=True)
+
+    ico_path = ICON_DIR / "app.ico"
+    if not ico_path.exists():
+        print("Generating app.ico ...")
+        create_ico(ico_path)
 
     cmd = [
         sys.executable,
@@ -18,6 +26,7 @@ def build() -> None:
         "--onefile",
         "--windowed",
         "--name=Caffeine",
+        "--icon=" + str(ico_path),
         "--distpath",
         str(DIST),
         "--workpath",
@@ -26,10 +35,6 @@ def build() -> None:
         str(ROOT),
         str(MAIN),
     ]
-
-    icon_path = ICON_DIR / "app.ico"
-    if icon_path.exists():
-        cmd.insert(-1, f"--icon={icon_path}")
 
     print("Building Caffeine.exe ...")
     subprocess.run(cmd, check=True)
