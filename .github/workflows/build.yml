@@ -43,6 +43,13 @@ jobs:
         shell: pwsh
         run: choco install innosetup --no-progress
 
+      - name: Download Inno Setup Chinese language
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $langDir = "${env:ProgramFiles(x86)}\Inno Setup 6\Languages"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" -OutFile "$langDir\ChineseSimplified.isl"
+
       - name: Compile installer
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
