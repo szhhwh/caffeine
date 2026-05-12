@@ -1,0 +1,20 @@
+[project]
+name = "caffeine"
+version = "1.0.0"
+description = "Windows system tray app to keep your screen awake"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pystray>=0.19",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.0"]
+
+[project.scripts]
+caffeine = "main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
