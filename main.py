@@ -1,7 +1,18 @@
+import ctypes
 import sys
 import threading
 
 from caffeine.tray import TrayApp
+
+
+def _enable_dpi_awareness() -> None:
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 
 def main() -> None:
@@ -9,6 +20,7 @@ def main() -> None:
         print("Caffeine only supports Windows.", file=sys.stderr)
         sys.exit(1)
 
+    _enable_dpi_awareness()
     _acquire_lock()
 
     app = TrayApp()
