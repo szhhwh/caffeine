@@ -35,11 +35,8 @@ jobs:
 
       - name: Inject version into installer.iss
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        run: |
-          $content = Get-Content installer.iss -Raw
-          $content = $content -replace '#define MyAppVersion "1.0.0"', "#define MyAppVersion `"$env:VERSION`""
-          Set-Content installer.iss $content -NoNewline
+        shell: bash
+        run: uv run python scripts/inject_version.py
 
       - name: Install Inno Setup
         if: startsWith(github.ref, 'refs/tags/v')
