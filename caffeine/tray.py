@@ -10,6 +10,7 @@ class TrayApp:
     TIMED_30 = "timed_30"
     TIMED_60 = "timed_60"
     TIMED_120 = "timed_120"
+    SYSTEM_ONLY = "system_only"
 
     _TIMED_MODES = {
         TIMED_30: 30,
@@ -62,6 +63,12 @@ class TrayApp:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
+                "\u5141\u8bb8\u7184\u5c4f",
+                self._toggle_system_only,
+                checked=lambda _: self._mode == self.SYSTEM_ONLY,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
                 "\u5f00\u673a\u81ea\u542f\u52a8",
                 self._toggle_autostart,
                 checked=lambda _: autostart.is_enabled(),
@@ -78,6 +85,14 @@ class TrayApp:
             self._mode = self.INFINITE
             self._activate()
 
+    def _toggle_system_only(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
+        if self._mode == self.SYSTEM_ONLY:
+            self._deactivate()
+        else:
+            self._cancel_timer()
+            self._mode = self.SYSTEM_ONLY
+            self._activate_system_only()
+
     def _activate_timed(self, mode: str) -> None:
         self._cancel_timer()
         self._mode = mode
@@ -88,6 +103,11 @@ class TrayApp:
     def _activate(self) -> None:
         self._active = True
         core.keep_awake()
+        self._update_icon()
+
+    def _activate_system_only(self) -> None:
+        self._active = True
+        core.keep_system_awake()
         self._update_icon()
 
     def _deactivate(self) -> None:

@@ -11,10 +11,15 @@ ES_SYSTEM_REQUIRED = 0x00000001
 ES_DISPLAY_REQUIRED = 0x00000002
 
 _AWAKE_FLAGS = ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED
+_SYSTEM_ONLY_FLAGS = ES_CONTINUOUS | ES_SYSTEM_REQUIRED
 
 
 def keep_awake() -> None:
     _kernel32.SetThreadExecutionState(_AWAKE_FLAGS)
+
+
+def keep_system_awake() -> None:
+    _kernel32.SetThreadExecutionState(_SYSTEM_ONLY_FLAGS)
 
 
 def allow_sleep() -> None:
