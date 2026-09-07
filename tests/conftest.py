@@ -6,8 +6,9 @@ from unittest import mock
 
 import pytest
 
+os.environ["PYSTRAY_BACKEND"] = "dummy"
+
 if sys.platform != "win32":
-    os.environ.setdefault("PYSTRAY_BACKEND", "dummy")
 
     def _fake_winreg() -> types.ModuleType:
         module = types.ModuleType("winreg")
