@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -34,9 +36,12 @@ jobs:
         run: uv run python build.py
 
       - name: Extract version
+        id: version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        run: |
+          echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
       - name: Inject version into installer.iss
         if: startsWith(github.ref, 'refs/tags/v')
@@ -94,8 +99,8 @@ jobs:
         with:
           files: |
             dist/Caffeine.exe
-            release/Caffeine_Setup_${{ env.VERSION }}_x64.exe
-            release/Caffeine_Portable_${{ env.VERSION }}_x64.zip
+            release/Caffeine_Setup_${{ needs.build.outputs.version }}_x64.exe
+            release/Caffeine_Portable_${{ needs.build.outputs.version }}_x64.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
