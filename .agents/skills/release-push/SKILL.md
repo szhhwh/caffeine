@@ -16,8 +16,7 @@ description: 发布新版本：更新版本号、提交、打 tag 并推送
 ### 1. 检查当前版本号
 
 ```bash
-grep '^version = ' pyproject.toml
-grep 'MyAppVersion' installer.iss
+uv version --short
 git tag --sort=-v:refname | head -5
 ```
 
@@ -32,22 +31,18 @@ git tag --sort=-v:refname | head -5
 
 ### 3. 更新版本号
 
-同时修改两个文件中的版本号：
-- `pyproject.toml`: 修改 `version = "x.y.z"` 字段
-- `installer.iss`: 修改 `#define MyAppVersion "x.y.z"` 字段
-
-然后同步 `uv.lock`（其中记录了项目自身版本号）：
+版本号唯一维护在 `pyproject.toml`，用一条命令同时更新它和 `uv.lock`：
 
 ```bash
-uv lock
+uv version <VERSION>
 ```
 
-确认 `uv.lock` 的 `[[package]] name = "caffeine"` 版本已更新。
+不要手动修改 `installer.iss` 的版本号：CI 发布时会通过 `scripts/inject_version.py` 从 tag 注入真实版本。
 
 ### 4. 提交并打 tag
 
 ```bash
-git add pyproject.toml installer.iss uv.lock
+git add pyproject.toml uv.lock
 git commit -m "chore: bump version to <VERSION>"
 git tag v<VERSION>
 ```
@@ -79,5 +74,6 @@ git push origin v<VERSION> --force
 ## 注意事项
 
 - 版本号格式遵循 semver：`MAJOR.MINOR.PATCH`
+- 版本号单一来源为 `pyproject.toml`；`uv.lock` 由 `uv version` 自动同步，`installer.iss` 由 CI 注入，均不手动维护
 - 提交信息格式：`chore: bump version to <VERSION>`
 - 推送前检查 `git status` 确保工作区干净
