@@ -1,5 +1,5 @@
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 
 class Timer:
@@ -19,9 +19,15 @@ class Timer:
         return self._thread is not None and self._thread.is_alive()
 
     def start(self, minutes: int) -> None:
+        self._start_seconds(minutes * 60)
+
+    def resume(self, seconds: int) -> None:
+        self._start_seconds(seconds)
+
+    def _start_seconds(self, seconds: int) -> None:
         self.cancel()
         self._stop_event.clear()
-        self._remaining = minutes * 60
+        self._remaining = max(0, seconds)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 

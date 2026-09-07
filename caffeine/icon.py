@@ -87,7 +87,9 @@ def create_icon(active: bool = True) -> Image.Image:
     return img
 
 
-def create_ico(path: str | bytes | Path, sizes: tuple[int, ...] = (16, 32, 48, 256)) -> None:
+def create_ico(
+    path: str | bytes | Path, sizes: tuple[int, ...] = (16, 32, 48, 256)
+) -> None:
     icon = create_icon(active=True).convert("RGBA")
     sorted_sizes = sorted(sizes, reverse=True)
     resized = [icon.resize((s, s), Image.LANCZOS) for s in sorted_sizes]

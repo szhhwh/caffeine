@@ -9,3 +9,4 @@ installer_output/
 *.exe
 *.ico
 .ruff_cache/
+.pytest_cache/
