@@ -30,12 +30,12 @@ def main() -> None:
 
 
 def _acquire_singleton() -> None:
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     mutex = kernel32.CreateMutexW(None, False, _MUTEX_NAME)
     if not mutex:
         print("Failed to create mutex.", file=sys.stderr)
         sys.exit(1)
-    if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
         print("Caffeine is already running.", file=sys.stderr)
         sys.exit(0)
 

@@ -7,7 +7,7 @@ class Timer:
         self._on_expire = on_expire
         self._on_tick = on_tick
         self._thread: threading.Thread | None = None
-        self._stop_event = threading.Event()
+        self._stop_event: threading.Event | None = None
         self._remaining: int = 0
 
     @property
@@ -26,26 +26,28 @@ class Timer:
 
     def _start_seconds(self, seconds: int) -> None:
         self.cancel()
-        self._stop_event.clear()
         self._remaining = max(0, seconds)
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        stop = threading.Event()
+        self._stop_event = stop
+        self._thread = threading.Thread(target=self._run, args=(stop,), daemon=True)
         self._thread.start()
 
     def cancel(self) -> None:
-        if self.is_running:
+        if self._stop_event is not None:
             self._stop_event.set()
-            if self._thread is not None:
-                self._thread.join(timeout=2)
+        if self._thread is not None:
+            self._thread.join(timeout=2)
         self._remaining = 0
         self._thread = None
+        self._stop_event = None
 
-    def _run(self) -> None:
-        while self._remaining > 0 and not self._stop_event.is_set():
+    def _run(self, stop: threading.Event) -> None:
+        while self._remaining > 0 and not stop.is_set():
             self._on_tick(self._remaining)
-            if self._stop_event.wait(timeout=1.0):
+            if stop.wait(timeout=1.0):
                 break
             self._remaining -= 1
 
-        if self._remaining <= 0 and not self._stop_event.is_set():
+        if self._remaining <= 0 and not stop.is_set():
             self._on_tick(0)
             self._on_expire()
