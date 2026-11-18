@@ -5,6 +5,7 @@ import pystray
 from caffeine import autostart, core
 from caffeine.config import Config
 from caffeine.icon import create_icon
+from caffeine.lid import LidSleepBlocker
 from caffeine.timer import Timer
 
 
@@ -14,6 +15,7 @@ class TrayApp:
     TIMED_60 = "timed_60"
     TIMED_120 = "timed_120"
     SYSTEM_ONLY = "system_only"
+    BLOCK_LID_SLEEP = "block_lid_sleep"
 
     _TIMED_MODES = {
         TIMED_30: 30,
@@ -27,7 +29,7 @@ class TrayApp:
         TIMED_120: "2 \u5c0f\u65f6",
     }
 
-    _ALL_MODES = (INFINITE, SYSTEM_ONLY, TIMED_30, TIMED_60, TIMED_120)
+    _ALL_MODES = (INFINITE, SYSTEM_ONLY, BLOCK_LID_SLEEP, TIMED_30, TIMED_60, TIMED_120)
 
     def __init__(self, config_path: Path | None = None) -> None:
         self._active = False
@@ -36,6 +38,9 @@ class TrayApp:
             on_expire=self._on_timer_expire, on_tick=self._on_timer_tick
         )
         self._config = Config(config_path)
+        self._lid = LidSleepBlocker(
+            self._config.path.with_name("lid-settings-backup.json")
+        )
         self._load_last_mode()
         self._tray = pystray.Icon(
             name="Caffeine",
@@ -57,7 +62,24 @@ class TrayApp:
         return value
 
     def run(self) -> None:
-        self._tray.run()
+        try:
+            self._tray.run(setup=self._on_tray_ready)
+        finally:
+            # The tray window may already be destroyed; clean up without UI calls.
+            if self._mode in self._TIMED_MODES and self._timer.is_running:
+                self._last_remaining = self._timer.remaining
+            self._cancel_timer()
+            try:
+                self._lid.restore()
+            finally:
+                self._active = False
+                self._mode = None
+                core.allow_sleep()
+                self._persist()
+
+    def _on_tray_ready(self, icon: pystray.Icon) -> None:
+        icon.visible = True
+        self._restore_lid_settings()
 
     def _build_menu(self) -> pystray.Menu:
         return pystray.Menu(
@@ -92,6 +114,11 @@ class TrayApp:
                 self._toggle_system_only,
                 checked=lambda _: self._mode == self.SYSTEM_ONLY,
             ),
+            pystray.MenuItem(
+                "阻止关盖睡眠",
+                self._toggle_block_lid_sleep,
+                checked=lambda _: self._mode == self.BLOCK_LID_SLEEP,
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "\u5f00\u673a\u81ea\u542f\u52a8",
@@ -111,6 +138,11 @@ class TrayApp:
     def _activate_last_mode(self) -> None:
         mode = self._last_mode or self.INFINITE
         self._last_mode = mode
+        if mode == self.BLOCK_LID_SLEEP:
+            self._activate_block_lid_sleep()
+            return
+        if not self._restore_lid_settings():
+            return
         if mode in self._TIMED_MODES:
             self._mode = mode
             self._last_remaining = self._resume_seconds(mode)
@@ -138,6 +170,8 @@ class TrayApp:
         if self._mode == self.INFINITE:
             self._deactivate()
         else:
+            if not self._restore_lid_settings():
+                return
             self._cancel_timer()
             self._mode = self.INFINITE
             self._last_mode = self.INFINITE
@@ -148,13 +182,52 @@ class TrayApp:
         if self._mode == self.SYSTEM_ONLY:
             self._deactivate()
         else:
+            if not self._restore_lid_settings():
+                return
             self._cancel_timer()
             self._mode = self.SYSTEM_ONLY
             self._last_mode = self.SYSTEM_ONLY
             self._last_remaining = None
             self._activate_system_only()
 
+    def _toggle_block_lid_sleep(
+        self, icon: pystray.Icon, item: pystray.MenuItem
+    ) -> None:
+        if self._mode == self.BLOCK_LID_SLEEP:
+            self._deactivate()
+        else:
+            self._activate_block_lid_sleep()
+
+    def _activate_block_lid_sleep(self) -> None:
+        try:
+            self._lid.enable()
+        except OSError:
+            self._tray.notify(
+                "无法修改关盖电源设置，请检查权限或以管理员身份运行后重试。",
+                "Caffeine - 阻止关盖睡眠失败",
+            )
+            return
+        self._cancel_timer()
+        self._mode = self.BLOCK_LID_SLEEP
+        self._last_mode = self.BLOCK_LID_SLEEP
+        self._last_remaining = None
+        self._activate_system_only()
+
+    def _restore_lid_settings(self) -> bool:
+        try:
+            self._lid.restore()
+        except OSError:
+            self._tray.notify(
+                "无法恢复关盖电源设置，请检查权限后重试；"
+                "也可在 Windows 电源选项中手动恢复。",
+                "Caffeine - 恢复关盖设置失败",
+            )
+            return False
+        return True
+
     def _activate_timed(self, mode: str) -> None:
+        if not self._restore_lid_settings():
+            return
         self._cancel_timer()
         self._mode = mode
         self._last_mode = mode
@@ -174,7 +247,9 @@ class TrayApp:
         self._update_icon()
         self._persist()
 
-    def _deactivate(self) -> None:
+    def _deactivate(self) -> bool:
+        if not self._restore_lid_settings():
+            return False
         self._active = False
         if self._mode in self._TIMED_MODES and self._timer.is_running:
             self._last_remaining = self._timer.remaining
@@ -183,6 +258,7 @@ class TrayApp:
         core.allow_sleep()
         self._update_icon()
         self._persist()
+        return True
 
     def _cancel_timer(self) -> None:
         self._timer.cancel()
@@ -220,5 +296,5 @@ class TrayApp:
         self._config.save(self._last_mode, self._last_remaining)
 
     def _quit(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
-        self._deactivate()
-        icon.stop()
+        if self._deactivate():
+            icon.stop()

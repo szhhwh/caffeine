@@ -38,6 +38,16 @@ if sys.platform != "win32":
 from caffeine import core  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def mock_lid_settings(monkeypatch):
+    # No test should ever change the host's real lid-close power policy.
+    import caffeine.tray
+
+    blocker = mock.Mock()
+    monkeypatch.setattr(caffeine.tray, "LidSleepBlocker", lambda path: blocker)
+    return blocker
+
+
 @pytest.fixture
 def awake(monkeypatch):
     calls: list[str] = []

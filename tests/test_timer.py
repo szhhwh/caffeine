@@ -41,6 +41,8 @@ def test_resume_counts_down_saved_seconds():
     timer, expired, ticks = _make_timer()
     timer.resume(2)
     assert expired.wait(timeout=5)
+    # The callback signals expiration before the worker has returned.
+    timer._thread.join(timeout=1)
     assert not timer.is_running
     assert timer.remaining == 0
     assert ticks == [2, 1, 0]
@@ -50,6 +52,7 @@ def test_resume_zero_expires_immediately():
     timer, expired, ticks = _make_timer()
     timer.resume(0)
     assert expired.wait(timeout=5)
+    timer._thread.join(timeout=1)
     assert ticks == [0]
     assert not timer.is_running
 

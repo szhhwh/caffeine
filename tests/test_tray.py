@@ -1,5 +1,7 @@
 import json
+from unittest import mock
 
+import pystray
 import pytest
 
 from caffeine.tray import TrayApp
@@ -171,3 +173,156 @@ def test_menu_default_action_toggles(app, awake):
     app._build_menu()(None)
     assert app._active
     assert awake == ["keep_awake"]
+
+
+def test_lid_option_is_in_same_group_as_system_only(app):
+    items = list(app._build_menu().items)
+    index = next(i for i, item in enumerate(items) if item.text == "允许熄屏")
+    assert items[index + 1].text == "阻止关盖睡眠"
+    assert items[index + 2].text == pystray.Menu.SEPARATOR.text
+
+
+def test_lid_mode_toggles_and_restores_settings(app, awake, mock_lid_settings):
+    mock_lid_settings.reset_mock()
+    app._toggle_block_lid_sleep(None, None)
+    assert app._active
+    assert app._mode == TrayApp.BLOCK_LID_SLEEP
+    assert awake == ["keep_system_awake"]
+    mock_lid_settings.enable.assert_called_once()
+    assert not app._timer.is_running
+
+    app._toggle_block_lid_sleep(None, None)
+    assert not app._active
+    assert app._mode is None
+    assert awake == ["keep_system_awake", "allow_sleep"]
+    mock_lid_settings.restore.assert_called_once()
+
+
+def test_lid_mode_remembers_last_mode(app, awake, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    click(app)
+    click(app)
+    assert app._active
+    assert app._mode == TrayApp.BLOCK_LID_SLEEP
+    assert mock_lid_settings.enable.call_count == 2
+    assert awake == ["keep_system_awake", "allow_sleep", "keep_system_awake"]
+
+
+def test_lid_mode_survives_restart(app, config_path, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    click(app)
+    restarted = TrayApp(config_path)
+    assert not restarted._active
+    assert restarted._last_mode == TrayApp.BLOCK_LID_SLEEP
+    click(restarted)
+    assert restarted._mode == TrayApp.BLOCK_LID_SLEEP
+
+
+def test_startup_recovers_lid_settings(app, mock_lid_settings):
+    icon = mock.Mock()
+    app._on_tray_ready(icon)
+    assert icon.visible
+    mock_lid_settings.restore.assert_called_once()
+
+
+def test_startup_restore_failure_is_reported_after_tray_is_visible(
+    app, mock_lid_settings
+):
+    mock_lid_settings.restore.side_effect = OSError("denied")
+    app._tray.notify = mock.Mock()
+    icon = mock.Mock()
+    app._on_tray_ready(icon)
+    assert icon.visible
+    app._tray.notify.assert_called_once()
+    assert not app._active
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        TrayApp.INFINITE,
+        TrayApp.SYSTEM_ONLY,
+        TrayApp.TIMED_30,
+    ],
+)
+def test_switching_from_lid_mode_restores_settings(app, mock_lid_settings, mode):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.reset_mock()
+    if mode == TrayApp.INFINITE:
+        app._toggle_infinite(None, None)
+    elif mode == TrayApp.SYSTEM_ONLY:
+        app._toggle_system_only(None, None)
+    else:
+        app._activate_timed(mode)
+    assert app._active
+    assert app._mode == mode
+    mock_lid_settings.restore.assert_called_once()
+
+
+def test_switching_from_timer_to_lid_mode_cancels_timer(app):
+    app._activate_timed(TrayApp.TIMED_30)
+    app._toggle_block_lid_sleep(None, None)
+    assert not app._timer.is_running
+    assert app._mode == TrayApp.BLOCK_LID_SLEEP
+    assert app._last_remaining is None
+
+
+def test_lid_enable_failure_preserves_current_mode(app, awake, mock_lid_settings):
+    app._toggle_infinite(None, None)
+    mock_lid_settings.enable.side_effect = OSError("denied")
+    app._tray.notify = mock.Mock()
+    app._toggle_block_lid_sleep(None, None)
+    assert app._mode == TrayApp.INFINITE
+    assert app._last_mode == TrayApp.INFINITE
+    assert app._active
+    assert awake == ["keep_awake"]
+    app._tray.notify.assert_called_once()
+
+
+def test_lid_restore_failure_does_not_deactivate(app, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.restore.side_effect = OSError("denied")
+    app._tray.notify = mock.Mock()
+    click(app)
+    assert app._active
+    assert app._mode == TrayApp.BLOCK_LID_SLEEP
+    app._tray.notify.assert_called_once()
+
+
+def test_lid_restore_failure_does_not_switch_modes(app, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.restore.side_effect = OSError("denied")
+    app._tray.notify = mock.Mock()
+    app._toggle_infinite(None, None)
+    assert app._mode == TrayApp.BLOCK_LID_SLEEP
+    app._tray.notify.assert_called_once()
+
+
+def test_quit_restores_lid_settings_before_stopping(app, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.reset_mock()
+    icon = mock.Mock()
+    app._quit(icon, None)
+    mock_lid_settings.restore.assert_called_once()
+    icon.stop.assert_called_once()
+    assert not app._active
+
+
+def test_quit_is_aborted_if_restore_fails(app, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.restore.side_effect = OSError("denied")
+    app._tray.notify = mock.Mock()
+    icon = mock.Mock()
+    app._quit(icon, None)
+    icon.stop.assert_not_called()
+    assert app._active
+
+
+def test_run_cleans_up_on_unexpected_exit(app, mock_lid_settings):
+    app._toggle_block_lid_sleep(None, None)
+    mock_lid_settings.reset_mock()
+    app._tray.run = mock.Mock(side_effect=RuntimeError("tray error"))
+    with pytest.raises(RuntimeError, match="tray error"):
+        app.run()
+    mock_lid_settings.restore.assert_called_once()
+    assert not app._active
